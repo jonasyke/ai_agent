@@ -156,24 +156,35 @@ def main():
             ]
         )
 
-    response = client.models.generate_content(
-        model = model_name,
-        contents = messages,
-        config= types.GenerateContentConfig(tools=[available_functions], system_instruction=system_prompt),
-    )
+    attempts = 20
+    while attempts >= 0:
 
-    if response.function_calls:
-        for function_call in response.function_calls:
-            # Instead of just printing, actually call the function
-            function_call_result = call_function(function_call, verbose=verbose)
-            
-            # Check if the result has the expected structure
-            if not function_call_result.parts[0].function_response.response:
-                raise Exception("Function call failed to return proper response")
-            
-            # If verbose, print the result
-            if verbose:
-                print(f"-> {function_call_result.parts[0].function_response.response}")
+        response = client.models.generate_content(
+            model = model_name,
+            contents = messages,
+            config= types.GenerateContentConfig(tools=[available_functions], system_instruction=system_prompt),
+        )
+        for candidate in response.candidates:
+            messages.append(candidate.content)
+
+        if response.function_calls:
+            for function_call in response.function_calls:
+                # Instead of just printing, actually call the function
+                function_call_result = call_function(function_call, verbose=verbose)
+                messages.append(function_call_result)
+                
+                # Check if the result has the expected structure
+                if not function_call_result.parts[0].function_response.response:
+                    raise Exception("Function call failed to return proper response")
+                
+                # If verbose, print the result
+                if verbose:
+                    print(f"-> {function_call_result.parts[0].function_response.response}")
+
+        attempts -= 1
+        if not response.function_calls:
+            print(f"Final response:\n{response.text}")
+            break
 
 if __name__ == "__main__":
     main()
